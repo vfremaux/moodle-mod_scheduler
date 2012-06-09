@@ -1,128 +1,138 @@
-<?PHP  
+<?PHP  // $Id: view.php,v 1.2 2011-12-26 22:25:08 vf Exp $
 
-/**
- * This page prints a particular instance of scheduler and handles
- * top level interactions
- * 
- * @package    mod
- * @subpackage scheduler
- * @copyright  2011 Henning Bostelmann and others (see README.txt)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+    /**
+    * This page prints a particular instance of scheduler and handles
+    * top level interactions
+    *
+    * @package mod-scheduler
+    * @category mod
+    * @author Gustav Delius, Valery Fremaux > 1.8
+    *
+    */
 
-
-require_once(dirname(__FILE__) . '/../../config.php');
-require_once($CFG->dirroot.'/mod/scheduler/lib.php');
-require_once($CFG->dirroot.'/mod/scheduler/locallib.php');
-
-// common parameters
-$id = optional_param('id', '', PARAM_INT);    // Course Module ID, or
-$a = optional_param('a', '', PARAM_INT);     // scheduler ID
-$action = optional_param('what', 'view', PARAM_CLEAN); 
-$subaction = optional_param('subaction', '', PARAM_CLEAN);
-$page = optional_param('page', 'allappointments', PARAM_CLEAN);
-$offset = optional_param('offset', '', PARAM_CLEAN);
-$usehtmleditor = false;
-$editorfields = '';
-
-if ($id) {
-    if (! $cm = get_coursemodule_from_id('scheduler', $id)) {
-        print_error('invalidcoursemodule');
+    /**
+    * Requires and includes
+    */    
+    require_once('../../config.php');
+    require_once($CFG->dirroot.'/mod/scheduler/lib.php');
+    require_once($CFG->dirroot.'/mod/scheduler/locallib.php');
+        
+    // common parameters
+    $id = optional_param('id', '', PARAM_INT);    // Course Module ID, or
+    $a = optional_param('a', '', PARAM_INT);     // scheduler ID
+    $action = optional_param('what', 'view', PARAM_CLEAN); 
+    $subaction = optional_param('subaction', '', PARAM_CLEAN);
+    $view = optional_param('view', 'allappointments', PARAM_CLEAN);
+    $offset = optional_param('offset', '', PARAM_INT);
+    $usehtmleditor = false;
+    $editorfields = '';
+    
+    if ($id) {
+        if (! $cm = get_record('course_modules', 'id', $id)) {
+            error('Course Module ID was incorrect');
+        }
+    
+        if (! $course = get_record('course', 'id', $cm->course)) {
+            error('Course is misconfigured');
+        }
+    
+        if (! $scheduler = get_record('scheduler', 'id', $cm->instance)) {
+            error('Course module is incorrect');
+        }
+    
+    } else {
+        if (! $scheduler = get_record('scheduler', 'id', $a)) {
+            error('Course module is incorrect');
+        }
+        if (! $course = get_record('course', 'id', $scheduler->course)) {
+            error('Course is misconfigured');
+        }
+        if (! $cm = get_coursemodule_from_instance('scheduler', $scheduler->id, $course->id)) {
+            error('Course Module ID was incorrect');
+        }
     }
     
-    if (! $course = $DB->get_record('course', array('id' => $cm->course))) {
-        print_error('coursemisconf');
-    }
+    require_login($course->id);
+        
+    // echo " [$action:$subaction] "; //$$DEBUG$$
     
-    if (! $scheduler = $DB->get_record('scheduler', array('id' => $cm->instance))) {
-        print_error('invalidcoursemodule');
+    add_to_log($course->id, 'scheduler', "$action:$subaction", "view.php?id={$cm->id}", $scheduler->id, $cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
+    $groupmode = groupmode($COURSE, $cm);
+
+/// Security trap if module is not visible
+
+    if (!has_capability('moodle/course:viewhiddenactivities', $context) && !$cm->visible){
+        error("The module was set to not visible. You cannot access this URL at the moment.");
     }
-    
-} else {
-    if (! $scheduler = $DB->get_record('scheduler', array('id' => $a))) {
-        print_error('invalidcoursemodule');
-    }
-    if (! $course = $DB->get_record('course', array('id' => $scheduler->course))) {
-        print_error('coursemisconf');
-    }
-    if (! $cm = get_coursemodule_from_instance('scheduler', $scheduler->id, $course->id)) {
-        print_error('invalidcoursemodule');
-    }
-}
-
-
-require_login($course->id, false, $cm);
-$context = get_context_instance(CONTEXT_MODULE, $cm->id);
-// TODO require_capability('mod/scheduler:view', $context);
-
-add_to_log($course->id, 'scheduler', $action, "view.php?id={$cm->id}", $scheduler->id, $cm->id);
-
-$groupmode = groupmode($course, $cm);
-
-// Initialize $PAGE, compute blocks
-$PAGE->set_url('/mod/scheduler/view.php', array('id' => $cm->id));
-
 
 /// This is a pre-header selector for downloded documents generation
 
-    if (has_capability('mod/scheduler:manage', $context) || has_capability('mod/scheduler:attend', $context)) {
+    if (has_capability('mod/scheduler:manage', $context) || isteacher($course->id, $USER->id)) {
         if (preg_match("/downloadexcel|downloadcsv|downloadods|dodownloadcsv/", $action)){
-            include($CFG->dirroot.'/mod/scheduler/downloads.php');
+            include 'downloads.php';
         }
     }
 
 /// Print the page header
 
-$strschedulers = get_string('modulenameplural', 'scheduler');
-$strscheduler  = get_string('modulename', 'scheduler');
-$strtime = get_string('time');
-$strdate = get_string('date', 'scheduler');
-$strstart = get_string('start', 'scheduler');
-$strend = get_string('end', 'scheduler');
-$strname = get_string('name');
-$strseen = get_string('seen', 'scheduler');
-$strnote = get_string('comments', 'scheduler');
-$strgrade = get_string('note', 'scheduler');
-$straction = get_string('action', 'scheduler');
-$strduration = get_string('duration', 'scheduler');
-$stremail = get_string('email');
+    $strschedulers = get_string('modulenameplural', 'scheduler');
+    $strscheduler  = get_string('modulename', 'scheduler');
+    $strtime = get_string('time');
+    $strdate = get_string('date', 'scheduler');
+    $strstart = get_string('start', 'scheduler');
+    $strend = get_string('end', 'scheduler');
+    $strname = get_string('name');
+    $strseen = get_string('seen', 'scheduler');
+    $strnote = get_string('comments', 'scheduler');
+    $strgrade = get_string('note', 'scheduler');
+    $straction = get_string('action', 'scheduler');
+    $strduration = get_string('duration', 'scheduler');
+    $stremail = get_string('email');
+    
+    // @see forum/view.php for source sample.
+    $navigation = build_navigation('', $cm);
+    print_header_simple($scheduler->name, '', $navigation, '', '', true, update_module_button($cm->id, $course->id, $strscheduler), navmenu($course, $cm));
 
-$title = $course->shortname . ': ' . format_string($scheduler->name);
-$PAGE->set_title($title);
-$PAGE->set_heading($course->fullname);
+/// integrate module specific stylesheets overrides by theme
 
-echo $OUTPUT->header();
+    echo '<link rel="stylesheet" href="'.$CFG->themewww.'/'.current_theme().'/scheduler.css" type="text/css" />';
 
 /// route to screen
+    
+    // teacher side
+    if (has_capability('mod/scheduler:manage', $context)) {
+        if ($action == 'viewstatistics'){
+            include 'viewstatistics.php';
+        }
+        elseif ($action == 'viewstudent'){
+            include "viewstudent.php";
+        }
+        elseif ($action == 'downloads'){
+            include "downloads.php";
+        }
+        elseif ($action == 'datelist'){
+            include 'datelist.php';
+        } else {
+            include 'teacherview.php';
+        }
+    }
+        
+    // student side
+    elseif (isstudent($course->id) || has_capability('mod/scheduler:appoint', $context)) { 
+        include 'studentview.php';
+    }
+    // for guests
+    else {
+        echo "<br/>";
+        print_simple_box(get_string('guestscantdoanything', 'scheduler'), 'center', '70%');
+    }    
 
-// teacher side
-if (has_capability('mod/scheduler:manage', $context)) {
-    if ($action == 'viewstatistics'){
-        include $CFG->dirroot.'/mod/scheduler/viewstatistics.php';
-    }
-    elseif ($action == 'viewstudent'){
-        include $CFG->dirroot.'/mod/scheduler/viewstudent.php';
-    }
-    elseif ($action == 'downloads'){
-        include $CFG->dirroot.'/mod/scheduler/downloads.php';
-    }
-    elseif ($action == 'datelist'){
-        include $CFG->dirroot.'/mod/scheduler/datelist.php';
-    }
-    else{
-        include $CFG->dirroot.'/mod/scheduler/teacherview.php';
-    }
-}
+/// Finish the page
 
-// student side
-elseif (has_capability('mod/scheduler:appoint', $context)) { 
-    include $CFG->dirroot.'/mod/scheduler/studentview.php';
-}
-// for guests
-else {
-    echo $OUTPUT->box(get_string('guestscantdoanything', 'scheduler'), 'center', '70%');
-}    
-
-echo $OUTPUT->footer($course);
+    if (empty($nohtmleditorneeded) and $usehtmleditor) {
+        use_html_editor($editorfields);
+    }
+    print_footer($course);
 
 ?>

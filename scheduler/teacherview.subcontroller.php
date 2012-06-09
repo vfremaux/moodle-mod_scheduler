@@ -1,19 +1,26 @@
 <?php
 
 /**
- * Controller for some sub-screens of teacher related use cases.
- * 
- * @package    mod
- * @subpackage scheduler
- * @copyright  2011 Henning Bostelmann and others (see README.txt)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+* @package mod-scheduler
+* @category mod
+* @author Valery Fremaux > 1.8
+*
+* This is a controller for major teacher side use cases
+*
+* @usecase addappointed
+* @usecase updateappointed
+* @usecase doremoveappointed
+* @usecase doaddappointed
+*/
 
-defined('MOODLE_INTERNAL') || die();
+if (!defined('MOODLE_INTERNAL')) {
+    die('Direct access to this script is forbidden.');    ///  It must be included from view.php in mod/scheduler
+}
 
 switch($subaction){
+	/**************************** Make form for adding a student for appointment *************************************/
     case 'addappointed':
-        get_slot_data($form);
+        scheduler_get_slot_data($form);
         $form->what = $action;
         $form->appointments = unserialize(stripslashes(required_param('appointments', PARAM_RAW)));
         $form->subaction = 'doaddappointed';
@@ -22,19 +29,21 @@ switch($subaction){
         $form->grade = '';
         $form->slotid = optional_param('slotid', -1, PARAM_INT);
 
-        echo $OUTPUT->heading(get_string('appointingstudent', 'scheduler'), 3);
-        echo $OUTPUT->box_start('center', '', '');
-        include($CFG->dirroot.'/mod/scheduler/appoint.html');
-        echo $OUTPUT->box_end();
+        print_heading(get_string('appointingstudent', 'scheduler'), 'center', 3);
+        print_simple_box_start('center', '', '');
+        include('appoint.html');
+        print_simple_box_end();
+        echo '<br />';
 
         // return code for include
         return -1;
 
+	/**************************** Make form for updating an appointed student *************************************/
     case 'updateappointed':
         $studentid = required_param('studentid', PARAM_INT);
         $form->what = $action;
     
-        get_slot_data($form);
+        scheduler_get_slot_data($form);
         $form->appointments = unserialize(stripslashes(optional_param('appointments', '', PARAM_RAW)));
         $form->appointmentssaved = unserialize(stripslashes(optional_param('appointments', '', PARAM_RAW)));
         $form->studentid = $studentid;
@@ -46,21 +55,23 @@ switch($subaction){
         // play again this appointment
         unset($form->appointments[$studentid]);
     
-        echo $OUTPUT->heading(get_string('updatingappointment', 'scheduler'),  3, 'center');
-        echo $OUTPUT->box_start('center', '', '');
-        include($CFG->dirroot.'/mod/scheduler/appoint.html');
-        echo $OUTPUT->box_end();
+        print_heading(get_string('updatingappointment', 'scheduler'), 'center', 3);
+        print_simple_box_start('center', '', '');
+        include('appoint.html');
+        print_simple_box_end();
+        echo '<br />';
         
         // return code for include
         return -1;
         
+	/**************************** Removes an appointed student from list *************************************/
     case 'doremoveappointed':
         unset($erroritem);
         $erroritem->message = get_string('dontforgetsaveadvice', 'scheduler');
         $erroritem->on = '';
         $errors[] = $erroritem;
 
-        get_slot_data($form);
+        scheduler_get_slot_data($form);
         $form->what = 'doaddupdateslot';
         $form->studentid = optional_param('studentid', '', PARAM_INT);
         if (!empty($form->studentid)){
@@ -71,13 +82,14 @@ switch($subaction){
         $form->slotid = optional_param('slotid', -1, PARAM_INT);
         break;
     
+	/**************************** Adds a student to appointed list *************************************/
     case 'doaddappointed':
         unset($erroritem);
         $erroritem->message = get_string('dontforgetsaveadvice', 'scheduler');
         $erroritem->on = '';
         $errors[] = $erroritem;
 
-        get_slot_data($form);
+        scheduler_get_slot_data($form);
         $form->what = 'doaddupdateslot';
         $form->appointments = unserialize(stripslashes(required_param('appointments', PARAM_RAW)));
         $form->slotid = optional_param('slotid', -1, PARAM_INT);

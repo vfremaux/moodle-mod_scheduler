@@ -1,26 +1,18 @@
-<?PHP 
+<?PHP // $Id: version.php,v 1.2 2011-12-26 22:25:08 vf Exp $
 
 /**
- * Version information for mod/scheduler
- * 
- * @package    mod
- * @subpackage scheduler
- * @copyright  2011 Henning Bostelmann and others (see README.txt)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+* @package mod-scheduler
+* @category mod
+* @author Valery Fremaux > 1.8
+*/
 
-defined('MOODLE_INTERNAL') || die();
+/////////////////////////////////////////////////////////////////////////////////
+///  Code fragment to define the version of scheduler
+///  This fragment is called by moodle_needs_upgrading() and /admin/index.php
+/////////////////////////////////////////////////////////////////////////////////
 
-/**
- * This is the 2.0 branch (MOODLE_20_STABLE) of the scheduler module.
- * It is intended for use with Moodle 2.0 and 2.1.
- */
-
-$module->version  = 2011103002;  // The current module version (Date: YYYYMMDDXX)
-$module->release  = '2.0.1';
-$module->requires = 2011033000;  // Requires Moodle 2.0
-$module->maturity = MATURITY_STABLE;
-
-$module->cron     = 60;          // Period for cron to check this module (secs)
+$module->version  = 2011122500;  // The current module version (Date: YYYYMMDDXX)
+$module->requires = 2004082300;  // Requires this Moodle version
+$module->cron     = 60;           // Period for cron to check this module (secs)
 
 ?>

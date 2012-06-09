@@ -1,35 +1,38 @@
 <?php
 
 /**
- * Controller for student-related use cases.
- * 
- * @package    mod
- * @subpackage scheduler
- * @copyright  2011 Henning Bostelmann and others (see README.txt)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+* @package mod-scheduler
+* @category mod
+* @author Gustav Delius, Valery Fremaux > 1.8
+*
+* Controller for the viewstudent page.
+*
+* @usecase updatenote
+* @usecase updategrades
+*/
 
-defined('MOODLE_INTERNAL') || die();
+if (!defined('MOODLE_INTERNAL')) {
+    die('Direct access to this script is forbidden.');    ///  It must be included from view.php in mod/scheduler
+}
 
 if ($subaction == 'updatenote' and (has_capability('mod/scheduler:manage', $context) or has_capability('mod/scheduler:manageallappointments', $context))){
     $app->id = required_param('appid', PARAM_INT);
     $distribute = optional_param('distribute', 0, PARAM_INT);
     
-    
     if ($app->id){
         if ($distribute){
             echo "distributing";
-            $slotid = $DB->get_field('scheduler_appointment', 'slotid', array('id' => $app->id));
+            $slotid = get_field('scheduler_appointment', 'slotid', 'id', $app->id);
             $allapps = scheduler_get_appointments($slotid);
             foreach($allapps as $anapp){
-                $anapp->appointmentnote = required_param('appointmentnote', PARAM_CLEANHTML);
+                $anapp->appointmentnote = addslashes(required_param('appointmentnote', PARAM_CLEANHTML));
                 $anapp->timemodified = time();
-                $DB->update_record('scheduler_appointment', $anapp);
+                update_record('scheduler_appointment', $anapp);
             }
         }
         else{
-            $app->appointmentnote = required_param('appointmentnote', PARAM_CLEANHTML);
-            $DB->update_record('scheduler_appointment', $app);
+            $app->appointmentnote = addslashes(required_param('appointmentnote', PARAM_CLEANHTML));
+            update_record('scheduler_appointment', $app);
         }
     }
 }
@@ -41,25 +44,20 @@ if ($subaction == 'updategrades' and (has_capability('mod/scheduler:manage', $co
         $app->id = $matches[1];
         $app->grade = required_param($key, PARAM_INT);
         $app->timemodified = time();
-        
+
         $distribute = optional_param('distribute'.$app->id, 0, PARAM_INT);
         if ($distribute){ // distribute to all members
-            $slotid = $DB->get_field('scheduler_appointment', 'slotid', array('id' => $app->id));
+            $slotid = get_field('scheduler_appointment', 'slotid', 'id', $app->id);
             $allapps = scheduler_get_appointments($slotid);
             foreach($allapps as $anapp){
                 $anapp->grade = $app->grade;
                 $anapp->timemodified = $app->timemodified;
-                $DB->update_record('scheduler_appointment', $anapp);
-                $studentid = $DB->get_field('scheduler_appointment', 'studentid', array('id'=>$anapp->id));
-                scheduler_update_grades($scheduler, $studentid);
+                update_record('scheduler_appointment', $anapp);
             }
         }
         else{ // set to current members
-            $DB->update_record('scheduler_appointment', $app);
-            $studentid = $DB->get_field('scheduler_appointment', 'studentid', array('id'=>$app->id));
-            scheduler_update_grades($scheduler, $studentid);
+            update_record('scheduler_appointment', $app);
         }
     }
 }
-
 ?>

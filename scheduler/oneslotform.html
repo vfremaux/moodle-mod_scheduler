@@ -6,7 +6,7 @@
 <form name="add" method="post" action="view.php">
 <input type="hidden" name="what" value="<?php p($form->what) ?>" />
 <input type="hidden" name="id" value="<?php p($cm->id) ?>" />
-<input type="hidden" name="page" value="<?php p($page) ?>" />
+<input type="hidden" name="view" value="<?php p($view) ?>" />
 <input type="hidden" name="subaction" value="" />
 <input type="hidden" name="offset" value="<?php p($offset) ?>" />
 <input type="hidden" name="studentid" value="" /><!-- for appointments managment, and scheduling only -->
@@ -38,6 +38,15 @@ if($action == 'schedule' or $action == 'schedulegroup'){
 <tr valign="top">
     <td align="right"><b><?php print_string('chooseexisting', 'scheduler') ?>:</b></td>
     <td align="left">
+        <script type="text/javascript">
+            function reloadandchoose(){
+                document.forms['add'].what.value = '<?php p($action) ?>';
+                document.forms['add'].subaction.value = 'dochooseslot';
+                document.forms['add'].studentid.value = '<?php p(@$form->studentid) ?>';
+                document.forms['add'].groupid.value = '<?php p(@$form->groupid) ?>';
+                document.forms['add'].submit();
+            }
+        </script>
 <?php 
     $startdatemem = '';
     $starttimemem = '';
@@ -53,7 +62,7 @@ if($action == 'schedule' or $action == 'schedulegroup'){
 
         $form->availableslotsmenu[$aSlot->id] = "$startdatestr $starttimestr";
     }
-    echo html_writer::select($form->availableslotsmenu, 'slotid', $form->slotid, array(''=>'choosedots'), array('id'=>'slotchooser'));
+    choose_from_menu($form->availableslotsmenu, 'slotid', $form->slotid, 'choose', 'reloadandchoose();');
 ?>
     </td>
 </tr>
@@ -63,21 +72,16 @@ if($action == 'schedule' or $action == 'schedulegroup'){
 ?>
 <tr valign="top">
     <td align="right"><b><?php print_string('date', 'scheduler') ?>:</b></td>
-    <td align="left" <?php print_error_class(@$errors, 'rangestart') ?> >
-        <?php 
-            echo html_writer::select_time('days', 'day', $form->starttime);
-            echo html_writer::select_time('months', 'month', $form->starttime);
-            echo html_writer::select_time('years', 'year', $form->starttime);
-        ?>
+    <td align="left" <?php scheduler_print_error_class(@$errors, 'rangestart') ?> >
+        <?php print_date_selector('day', 'month', 'year', $form->starttime); ?>
     </td>
 </tr>
 <tr valign="top">
     <td align="right"><b><?php print_string('starttime', 'scheduler') ?>:</b></td>
     <td align="left">
         <?php
-           echo html_writer::select_time('hours', 'hour', $form->starttime);
-           echo html_writer::select_time('minutes', 'minute', $form->starttime);
-           echo $OUTPUT->help_icon('choosingslotstart', 'scheduler');
+           print_time_selector('hour', 'minute', $form->starttime, 5);
+           helpbutton('choosingslotstart', get_string('moveslot', 'scheduler'), 'scheduler');
         ?>
     </td>
 </tr>
@@ -90,21 +94,26 @@ if($action == 'schedule' or $action == 'schedulegroup'){
 </tr>
 <tr valign="top">
     <td align="right"><b><?php print_string('multiplestudents', 'scheduler') ?>:</b></td>
-    <td align="left" <?php print_error_class(@$errors, 'exclusivity') ?> >
+    <td align="left" <?php scheduler_print_error_class(@$errors, 'exclusivity') ?> >
         <script type="text/javascript">
-           
+           function allowmoreappointments(selectobj){
+                var addlink = document.getElementById('addappointment');
+                if (selectobj.options[selectobj.selectedIndex].value > <?php echo count($form->appointments) ?> ){
+                    addlink.style.visibility = 'visible';
+                } else {
+                    addlink.style.visibility = 'hidden';
+                }
+            }
         </script>
         <?php
             $exclusivemenu['0'] = get_string('unlimited', 'scheduler');
             $knownslots = count($form->appointments);
             if ($knownslots == 0) $knownslots++;            
-            for($i = $knownslots ; $i < 10 ; $i++){
+            for($i = $knownslots ; $i < 16 ; $i++){
                 $exclusivemenu[(string)$i] = $i;
             }
-            
-            echo html_writer::select($exclusivemenu, 'exclusivity', $form->exclusivity, array(), array('id'=>'exclusivechooser'));
-            
-            echo $OUTPUT->help_icon('exclusivity', 'scheduler', get_string('groupsession', 'scheduler'));
+            choose_from_menu($exclusivemenu, 'exclusivity', $form->exclusivity, '', 'allowmoreappointments(this);');
+            helpbutton('exclusivity', get_string('groupsession', 'scheduler'), 'scheduler');
         ?>
     </td>
 </tr>
@@ -114,24 +123,24 @@ if($action == 'schedule' or $action == 'schedulegroup'){
         <?php
             $reusemenu[0] = get_string('no');
             $reusemenu[1] = get_string('yes');
-            echo html_writer::select_yes_no('reuse',$form->reuse); 
-            echo $OUTPUT->help_icon('reuse', 'scheduler');
+            choose_from_menu($reusemenu, 'reuse', $form->reuse, '');
+            helpbutton('reuse', get_string('reuse', 'scheduler'), 'scheduler');
         ?>
     </td>
 </tr>
 <tr valign="top">
     <td align="right"><b><?php print_string('location', 'scheduler') ?>:</b></td>
     <td align="left">
-        <input type="text" size="30" maxlength="50" name="appointmentlocation" value="<?php echo $form->appointmentlocation ?>" />
-        <?php echo $OUTPUT->help_icon('location', 'scheduler'); ?>
+        <input type="text" size="30" maxlength="50" name="appointmentlocation" value="<?php echo $form->appointmentlocation?>" />
+        <?php helpbutton('location', get_string('location', 'scheduler'), 'scheduler'); ?>
     </td>
 </tr>
 <?php
 if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 ?>
 <tr valign="top">
-    <td align="right"><b><?php p(scheduler_get_teacher_name($scheduler)); ?>:</b></td>
-    <td align="left" <?php print_error_class(@$errors, 'teacherid') ?> >
+    <td align="right"><b><?php echo $scheduler->staffrolename ?>:</b></td>
+    <td align="left" <?php scheduler_print_error_class(@$errors, 'teacherid') ?> >
         <?php
             $attendants = scheduler_get_attendants($cm->id);
             $attendantsmenu = array();
@@ -139,11 +148,11 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
                 foreach($attendants as $attendant){
                     $attendantsmenu[$attendant->id] = fullname($attendant);
                 }
-                echo html_writer::select($attendantsmenu, 'teacherid', $form->teacherid);
+                choose_from_menu($attendantsmenu, 'teacherid', $form->teacherid);
             } else {
-               print_string('noteachershere', 'scheduler', s(scheduler_get_teacher_name($scheduler)));
+               print_string('noteachershere', 'scheduler', format_string($scheduler->staffrolename));
             }
-            echo $OUTPUT->help_icon('bookwithteacher', 'scheduler'); 
+            helpbutton('bookwithteacher', get_string('bookwithteacher', 'scheduler'), 'scheduler'); 
         ?>
     </td>
 </tr>
@@ -153,11 +162,7 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 <tr valign="top">
     <td align="right"><b><?php print_string('displayfrom', 'scheduler') ?>:</b></td>
     <td align="left">
-        <?php
-            echo html_writer::select_time('days', 'displayday', $form->hideuntil);
-            echo html_writer::select_time('months', 'displaymonth', $form->hideuntil);
-            echo html_writer::select_time('years', 'displayyear', $form->hideuntil);
-        ?>
+        <?php print_date_selector('displayday', 'displaymonth', 'displayyear', $form->hideuntil); ?>
     </td>
 </tr>
 <tr valign="top">
@@ -172,13 +177,13 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
                 echo '<input type="hidden" name="format" value="'.FORMAT_HTML.'" />';
             } else {
                 echo '<p align="right">';
-                echo $OUTPUT->help_icon('textformat', get_string('formattexttype'));
+                helpbutton('textformat', get_string('formattexttype'));
                 print_string('formattexttype');
                 echo ':&nbsp;';
                 if (!$form->format) {
                     $form->format = 'MOODLE';
                 }
-                echo html_writer::select(format_text_menu(), 'format', $form->format); 
+                choose_from_menu(format_text_menu(), 'format', $form->format, ''); 
                 echo '</p>';
             }
         ?>
@@ -187,7 +192,7 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 <tr>
     <td colspan="2">
 <?php 
-echo $OUTPUT->box_start(get_string('appointments', 'scheduler'), 'center');
+print_simple_box_start(get_string('appointments', 'scheduler'), 'center');
 if (!empty($form->appointments) && count($form->appointments)){
     echo "
         <script type=\"text/javascript\">
@@ -206,26 +211,25 @@ if (!empty($form->appointments) && count($form->appointments)){
             }
         </script>
     ";
-    $table = new html_table();
     $table->head  = array ('', get_string('students'), $strseen, $strnote, $strgrade, $straction);
     $table->align = array ('LEFT', 'LEFT', 'CENTER', 'LEFT', 'CENTER', 'RIGHT');
     $table->width = '';
     foreach($form->appointments as $anAppointment){
-        $user = $DB->get_record('user', array('id'=>$anAppointment->studentid));
+        $user = get_record('user', 'id', $anAppointment->studentid);
         $gradetext = scheduler_format_grade($scheduler,$anAppointment->grade); 
         $attended = $anAppointment->attended ? '<img src="pix/ticked.gif" border="0">' : '<img src="pix/unticked.gif" border="0">' ;
-        $cmds = "<a href=\"javascript:updateAppointment('{$anAppointment->studentid}')\" title=\"".get_string('edit')."\"><img src=\"{$CFG->wwwroot}/pix/t/edit.gif\"></a> ";
-        $cmds .= "<a href=\"javascript:deleteAppointment('{$anAppointment->studentid}')\" title=\"".get_string('remove')."\"><img src=\"{$CFG->wwwroot}/pix/t/delete.gif\"></a>";
-        $table->data[] = array('', fullname($user), $attended, $anAppointment->appointmentnote, $gradetext, $cmds);
+        $cmds = "<a href=\"javascript:updateAppointment('{$anAppointment->studentid}')\" title=\"".get_string('edit')."\"><img src=\"{$CFG->pixpath}/t/edit.gif\"></a> ";
+        $cmds .= "<a href=\"javascript:deleteAppointment('{$anAppointment->studentid}')\" title=\"".get_string('remove')."\"><img src=\"{$CFG->pixpath}/t/delete.gif\"></a>";
+        $table->data[] = array('', fullname($user), $attended, stripslashes($anAppointment->appointmentnote), $gradetext, $cmds);
     }
-    echo html_writer::table($table);
+    print_table($table);
 } else {
     print_string('noappointments', 'scheduler');
 }
 echo '<br />';
 $hiddenstate = ((count($form->appointments) < $form->exclusivity and $form->exclusivity > 0) || !$form->exclusivity) ? "style=\"visibility:visible\"" : "style=\"visibility:hidden\"" ;
 echo "<div id=\"addappointment\" $hiddenstate ><a href=\"javascript:document.forms['add'].what.value = '{$action}' ;document.forms['add'].subaction.value = 'addappointed' ;document.forms['add'].submit();\">".get_string('appointsomeone','scheduler').'</a></div>';
-echo $OUTPUT->box_end();
+print_simple_box_end();
 ?>
         </td>
     </tr>
@@ -234,25 +238,3 @@ echo $OUTPUT->box_end();
 <input type="button" value="<?php  print_string('cancel') ?>" onclick="self.location.href='view.php?id=<?php echo $cm->id?>'" />
 </center>
 </form>
-<!-- This JS is a hack around Moodle standards, but it's required at the moment without refactoring the entire code. -->
-<script type="text/javascript">
-     function reloadandchoose() {
-         document.forms['add'].what.value = '<?php p($action) ?>';
-         document.forms['add'].subaction.value = 'dochooseslot';
-         document.forms['add'].studentid.value = '<?php p(@$form->studentid) ?>';
-         document.forms['add'].groupid.value = '<?php p(@$form->groupid) ?>';
-         document.forms['add'].submit();
-     }
-     document.forms['add'].elements['slotchooser'].onchange = function() { reloadandchoose(); };
-     
-     function allowmoreappointments(selectobj){
-         var addlink = document.getElementById('addappointment');
-         if (selectobj.options[selectobj.selectedIndex].value > <?php echo count($form->appointments) ?> ){
-             addlink.style.visibility = 'visible';
-         } else {
-             addlink.style.visibility = 'hidden';
-         }
-     }
-     document.forms['add'].elements['exclusivechooser'].onchange = function() { allowmoreappointments(this); };
-                        
- </script>

@@ -1,10 +1,10 @@
 <?php
 
-function xmldb_scheduler_upgrade($oldversion=0) {
+function xmldb_scheduler_upgrade($oldversion = 0) {
 /// This function does anything necessary to upgrade 
 /// older versions to match current functionality 
 
-    global $CFG, $DB;
+    global $CFG;
     
     $result = true;
 
@@ -98,42 +98,66 @@ function xmldb_scheduler_upgrade($oldversion=0) {
         change_field_notnull($table, $field);
     }
     
-    /* ******************* 2.0 upgrade line ********************** */ 
-    
-        if ($oldversion < 2011081302) {
+     if ($result && $oldversion < 2010091800) {
+     	// most are performance optimisation adding suitable indexes
 
-		$dbman = $DB->get_manager();
+    /// Define index slot_ix (not unique) to be added to scheduler_appointment
+        $table = new XMLDBTable('scheduler_appointment');
+        $field = new XMLDBField('schedulerid');
+        $field->setAttributes(XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, null, null, null, null, 'id');
 
-        // Rename description field to intro, and define field introformat to be added to scheduler
-        $table = new xmldb_table('scheduler');
-        $introfield = new xmldb_field('description', XMLDB_TYPE_TEXT, 'small', null, XMLDB_NOTNULL, null, null, 'name');
-        $dbman->rename_field($table, $introfield, 'intro', false);
-        
-        $formatfield = new xmldb_field('introformat', XMLDB_TYPE_INTEGER, '4', XMLDB_UNSIGNED,
-                XMLDB_NOTNULL, null, '0', 'intro');
+    /// Launch add field schedulerid
+        $result = $result && add_field($table, $field);
 
-        if (!$dbman->field_exists($table, $formatfield)) {
-            $dbman->add_field($table, $formatfield);
-        }
+        $index = new XMLDBIndex('scheduler_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('schedulerid'));
 
-        // conditionally migrate to html format in intro
-        if ($CFG->texteditors !== 'textarea') {
-            $rs = $DB->get_recordset('scheduler', array('introformat' => FORMAT_MOODLE),
-                    '', 'id, intro, introformat');
-            foreach ($rs as $q) {
-                $q->intro       = text_to_html($q->intro, false, false, true);
-                $q->introformat = FORMAT_HTML;
-                $DB->update_record('scheduler', $q);
-                upgrade_set_timeout();
-            }
-            $rs->close();
-        }
+    /// Launch add index scheduler_ix
+        $result = $result && add_index($table, $index);
 
-        // savepoint reached
-        upgrade_mod_savepoint(true, 2011081302, 'scheduler');
+        $index = new XMLDBIndex('slot_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('slotid'));
+
+    /// Launch add index slot_ix
+        $result = $result && add_index($table, $index);
+
+        $index = new XMLDBIndex('student_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('studentid'));
+
+    /// Launch add index slot_ix
+        $result = $result && add_index($table, $index);
+
+    /// Define index slot_ix (not unique) to be added to scheduler_appointment
+        $table = new XMLDBTable('scheduler_slots');
+        $index = new XMLDBIndex('scheduler_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('schedulerid'));
+
+    /// Launch add index slot_ix
+        $result = $result && add_index($table, $index);
+
+        $index = new XMLDBIndex('teacher_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('teacherid'));
+
+    /// Launch add index slot_ix
+        $result = $result && add_index($table, $index);
+
+    /// Define index slot_ix (not unique) to be added to scheduler_appointment
+        $table = new XMLDBTable('scheduler');
+        $index = new XMLDBIndex('course_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('course'));
+
+    /// Launch add index slot_ix
+        $result = $result && add_index($table, $index);
+
+        $index = new XMLDBIndex('teacher_ix');
+        $index->setAttributes(XMLDB_INDEX_NOTUNIQUE, array('teacher'));
+
+    /// Launch add index slot_ix
+        $result = $result && add_index($table, $index);
     }
+
     
-    return true;
+    return $result;
 }
 
 ?>

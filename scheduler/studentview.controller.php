@@ -1,52 +1,46 @@
 <?php
 
 /**
- * Controller for student view
- * 
- * @package    mod
- * @subpackage scheduler
- * @copyright  2011 Henning Bostelmann and others (see README.txt)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+* Controller for student view
+*
+* @package mod-scheduler
+* @category mod
+* @author Gustav Delius, Valery Fremaux > 1.8
+*
+* @usecase 'savechoice', needs mod/scheduler:appoint
+* @usecase 'disengage', needs mod/scheduler:disengage
+*/
 
-
-defined('MOODLE_INTERNAL') || die();
-
-require_once($CFG->dirroot.'/mod/scheduler/mailtemplatelib.php');
-
+if (!defined('MOODLE_INTERNAL')) {
+    die('Direct access to this script is forbidden.');    ///  It must be included from view.php in mod/scheduler
+}
 
 /************************************************ Saving choice ************************************************/
-if ($action == 'savechoice') {
+if ($action == 'savechoice' && has_capability('mod/scheduler:appoint', $context)) {	
     // get parameters
     $slotid = optional_param('slotid', '', PARAM_INT);
     $appointgroup = optional_param('appointgroup', 0, PARAM_INT);
     // $notes = optional_param('notes', '', PARAM_TEXT);
-    
+
     if (!$slotid) {
         notice(get_string('notselected', 'scheduler'), "view.php?id={$cm->id}");
     }
-    
-    if (!$slot = $DB->get_record('scheduler_slots', array('id' => $slotid))) {
-        print_error('errorinvalidslot', 'scheduler');
+
+    if (!$slot = get_record('scheduler_slots', 'id', $slotid)) {
+        error('Invalid slot ID');
     }
-    
     
     $available = scheduler_get_appointments($slotid);
     $consumed = ($available) ? count($available) : 0 ;
-    
+
     // if slot is already overcrowded
     if ($slot->exclusivity > 0 && $slot->exclusivity <= $consumed) {
-        if ($updating = $DB->count_records('scheduler_appointment', array('slotid' => $slot->id, 'studentid' => $USER->id))) {
-            $message = get_string('alreadyappointed', 'scheduler');
-        } else {
-            $message = get_string('slot_is_just_in_use', 'scheduler');
-        }
-        echo $OUTPUT->box_start('error');
-        echo $message;
-        echo $OUTPUT->continue_button("{$CFG->wwwroot}/mod/scheduler/view.php?id={$cm->id}");
-        echo $OUTPUT->box_end();
-        echo $OUTPUT->footer($course);
-        exit();
+       print_simple_box_start('center');
+       echo '<h2 style="color:red;">'.get_string('slot_is_just_in_use', 'scheduler').'</h2>';
+       print_simple_box_end();
+       print_continue("{$CFG->wwwroot}/mod/scheduler/view.php?id={$cm->id}");
+       print_footer($course);
+       exit();
     }
     
     /// If we are scheduling a full group we must discard all pending appointments of other participants of the scheduled group
@@ -82,41 +76,42 @@ if ($action == 'savechoice') {
     /// cleans up old slots if not attended (attended are definitive results, with grades)
     $sql = "
         SELECT 
-        s.*,
-        a.id as appointmentid
+            s.*,
+            a.id as appointmentid
         FROM 
-        {scheduler_slots} AS s,
-        {scheduler_appointment} AS a 
+            {$CFG->prefix}scheduler_slots AS s,
+            {$CFG->prefix}scheduler_appointment AS a 
         WHERE 
-        s.id = a.slotid AND
-        s.schedulerid = '{$slot->schedulerid}' AND 
-        a.studentid IN ('$oldslotownerlist') AND
-        a.attended = 0
-        ";
+            s.id = a.slotid AND
+            s.schedulerid = '{$slot->schedulerid}' AND 
+            a.studentid IN ('$oldslotownerlist') AND
+            a.attended = 0
+    ";
     if ($scheduler->schedulermode == 'onetime'){
         $sql .= " AND s.starttime > ".time();
     }
-    if ($oldappointments = $DB->get_records_sql($sql)){
+    if ($oldappointments = get_records_sql($sql)){
         foreach($oldappointments as $oldappointment){
-            
-            $oldappid  = $oldappointment->appointmentid;
-            $oldslotid = $oldappointment->id;
-            
-            // prepare notification e-mail first - slot might be deleted if it's volatile 
-            if ($scheduler->allownotifications) {
-                $student = $DB->get_record('user', array('id'=>$USER->id));
-                $teacher = $DB->get_record('user', array('id'=>$oldappointment->teacherid));
-                $vars = scheduler_get_mail_variables($scheduler,$oldappointment,$teacher,$student);
-            }
-            
-            // reload old slot
-            $oldslot = $DB->get_record('scheduler_slots', array('id'=>$oldslotid));
-            // delete the appointment (and possibly the slot)
-            scheduler_delete_appointment($oldappid, $oldslot, $scheduler);
-            
+            scheduler_delete_appointment($oldappointment->appointmentid, $oldappointment, $scheduler);
+    
             // notify teacher
             if ($scheduler->allownotifications){
-                send_email_from_template($teacher, $student, $course, 'cancelledbystudent', 'cancelled', $vars, 'scheduler');
+                $student = get_record('user', 'id', $USER->id);
+                $teacher = get_record('user', 'id', $oldappointment->teacherid);
+                include_once($CFG->dirroot.'/mod/scheduler/mailtemplatelib.php');
+                $vars = array( 'SITE' => $SITE->shortname,
+                               'SITE_URL' => $CFG->wwwroot,
+                               'COURSE_SHORT' => $COURSE->shortname,
+                               'COURSE' => $COURSE->fullname,
+                               'COURSE_URL' => $CFG->wwwroot.'/course/view.php?id='.$COURSE->id,
+                               'MODULE' => $scheduler->name,
+                               'USER' => fullname($student),
+                               'DATE' => userdate($oldappointment->starttime,get_string('strftimedate')),   // BUGFIX CONTRIB-937
+ 	                           'TIME' => userdate($oldappointment->starttime,get_string('strftimetime')),   // BUGFIX end
+                               'DURATION' => $oldappointment->duration );
+                $notification = compile_mail_template('cancelled', $vars );
+                $notificationHtml = compile_mail_template('cancelled_html', $vars );
+                email_to_user($teacher, $student, get_string('cancelledbystudent', 'scheduler', $SITE->shortname), $notification, $notificationHtml);
             }
             
             // delete all calendar events for that slot
@@ -126,47 +121,72 @@ if ($action == 'savechoice') {
         }
     }
     
-    
-    $newslot = $DB->get_record('scheduler_slots', array('id'=>$slotid));
-    
+
     /// create new appointment and add it for each member of the group
     foreach($oldslotowners as $astudentid){
         $appointment->slotid = $slotid;
         // $appointment->notes = $notes;
+        $appointment->schedulerid = $scheduler->id;
         $appointment->studentid = $astudentid;
         $appointment->attended = 0;
         $appointment->timecreated = time();
         $appointment->timemodified = time();
-        $DB->insert_record('scheduler_appointment', $appointment);
-        scheduler_update_grades($scheduler, $astudentid);
-        scheduler_events_update($newslot, $course);
+        if (!insert_record('scheduler_appointment', $appointment)) {
+           error('Couldn\'t save choice to database');
+        }
+        scheduler_events_update($slot, $course);
         
         // notify teacher
         if ($scheduler->allownotifications){
-            $student = $DB->get_record('user', array('id' => $appointment->studentid));
-            $teacher = $DB->get_record('user', array('id' => $slot->teacherid));
-            $vars = scheduler_get_mail_variables($scheduler,$newslot,$teacher,$student);
-            send_email_from_template($teacher, $student, $course, 'newappointment', 'applied', $vars, 'scheduler');
+            $student = get_record('user', 'id', $appointment->studentid);
+            $teacher = get_record('user', 'id', $slot->teacherid);
+            include_once($CFG->dirroot.'/mod/scheduler/mailtemplatelib.php');
+            $vars = array( 'SITE' => $SITE->shortname,
+                           'SITE_URL' => $CFG->wwwroot,
+                           'COURSE_SHORT' => $COURSE->shortname,
+                           'COURSE' => $COURSE->fullname,
+                           'COURSE_URL' => $CFG->wwwroot.'/course/view.php?id='.$COURSE->id,
+                           'MODULE' => $scheduler->name,
+                           'USER' => fullname($student),
+                           'DATE' => userdate($slot->starttime,get_string('strftimedate')),   // BUGFIX CONTRIB-937
+ 	                       'TIME' => userdate($slot->starttime,get_string('strftimetime')),   // BUGFIX end
+                           'DURATION' => $slot->duration );
+            $notification = compile_mail_template('applied', $vars );
+            $notificationHtml = compile_mail_template('applied_html', $vars );
+            email_to_user($teacher, $student, get_string('newappointment', 'scheduler', $SITE->shortname), $notification, $notificationHtml);
         }
     }
 }
 // *********************************** Disengage alone from the slot ******************************/
-if ($action == 'disengage') {
-    $appointments = $DB->get_records_select('scheduler_appointment', "studentid = $USER->id AND attended = 0");
+if (($action == 'disengage') && has_capability('mod/scheduler:disengage', $context)) {
+
+	$appointments = scheduler_get_user_appointments($scheduler);		
     if ($appointments){
         foreach($appointments as $appointment){
-            $oldslot = $DB->get_record('scheduler_slots', array('id' => $appointment->slotid));
+            $oldslot = get_record('scheduler_slots', 'id', $appointment->slotid);
             scheduler_delete_appointment($appointment->id, $oldslot, $scheduler);
-            
+    
             // notify teacher
             if ($scheduler->allownotifications){
-                $student = $DB->get_record('user', array('id' => $USER->id));
-                $teacher = $DB->get_record('user', array('id' => $oldslot->teacherid));
-                $vars = scheduler_get_mail_variables($scheduler,$oldslot,$teacher,$student);
-                send_email_from_template($teacher, $student, $COURSE, 'cancelledbystudent', 'cancelled', $vars, 'scheduler');
+                $student = get_record('user', 'id', $USER->id);
+                $teacher = get_record('user', 'id', $oldslot->teacherid);
+                include_once($CFG->dirroot.'/mod/scheduler/mailtemplatelib.php');
+                $vars = array( 'SITE' => $SITE->shortname,
+                               'SITE_URL' => $CFG->wwwroot,
+                               'COURSE_SHORT' => $COURSE->shortname,
+                               'COURSE' => $COURSE->fullname,
+                               'COURSE_URL' => $CFG->wwwroot.'/course/view.php?id='.$COURSE->id,
+                               'MODULE' => $scheduler->name,
+                               'USER' => fullname($student), 
+                               'DATE' => userdate($oldslot->starttime,get_string('strftimedate')),  // BUGFIX CONTRIB-937
+ 	                           'TIME' => userdate($oldslot->starttime,get_string('strftimetime')),  // BUGFIX end
+                               'DURATION' => $oldslot->duration );
+                $notification = compile_mail_template('cancelled', $vars );
+                $notificationHtml = compile_mail_template('cancelled_html', $vars );
+                email_to_user($teacher, $student, get_string('cancelledbystudent', 'scheduler', $SITE->shortname), $notification, $notificationHtml);
             }                    
         }
-        
+
         // delete calendar events for that slot
         scheduler_delete_calendar_events($oldslot);  
         // renew all calendar events as some appointments may be left for other students

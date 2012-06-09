@@ -4,7 +4,7 @@
 <form name="add" method="post" action="view.php">
 <input type="hidden" name="what" value="doaddsession" />
 <input type="hidden" name="id" value="<?php p($cm->id) ?>" />
-<input type="hidden" name="page" value="<?php p($page) ?>" />
+<input type="hidden" name="view" value="<?php p($view) ?>" />
 <?php 
 if (!has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 ?>
@@ -16,28 +16,20 @@ if (!has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 <table cellpadding="5">
     <tr>
         <td align="right"><b><?php print_string('date', 'scheduler') ?>:</b></td>
-        <td align="left" <?php print_error_class(@$errors, 'rangestart,range') ?> >
-            <?php  
-                echo html_writer::select_time('days', 'startday', $form->rangestart);
-                echo html_writer::select_time('months', 'startmonth', $form->rangestart);
-                echo html_writer::select_time('years', 'startyear', $form->rangestart);
-            ?>
+        <td align="left" <?php scheduler_print_error_class(@$errors, 'rangestart,range') ?> >
+            <?php print_date_selector('startday', 'startmonth', 'startyear', $form->rangestart); ?>
         </td>
     </tr>
     <tr valign="top">
         <td align="right"><b><?php print_string('enddate', 'scheduler') ?>:</b></td>
-        <td align="left" <?php print_error_class(@$errors, 'rangeend,range') ?> >
-            <?php  
-                echo html_writer::select_time('days', 'endday', $form->rangeend);
-                echo html_writer::select_time('months', 'endmonth', $form->rangeend);
-                echo html_writer::select_time('years', 'endyear', $form->rangeend);
-            ?>
+        <td align="left" <?php scheduler_print_error_class(@$errors, 'rangeend,range') ?> >
+            <?php print_date_selector('endday', 'endmonth', 'endyear', $form->rangeend); ?>
         </td>
     </tr>
     <div id="advanced" name="advanced" style="visibility:visible;">
     <tr valign="top">
         <td align="right"><b><?php print_string('addondays', 'scheduler') ?>:</b></td>
-        <td align="left" <?php print_error_class(@$errors, 'days,range') ?> >
+        <td align="left" <?php scheduler_print_error_class(@$errors, 'days,range') ?> >
             <input type="checkbox" <?php echo ($form->monday) ? 'checked="checked"' : '' ; ?> name="monday" value="1" /> <?php print_string('monday', 'scheduler') ; ?><br>
             <input type="checkbox" <?php echo ($form->tuesday) ? 'checked="checked"' : '' ; ?> name="tuesday" value="1" /> <?php print_string('tuesday', 'scheduler');  ?><br>
             <input type="checkbox" <?php echo ($form->wednesday) ? 'checked="checked"' : '' ; ?> name="wednesday" value="1" /> <?php print_string('wednesday', 'scheduler');  ?><br>
@@ -50,19 +42,13 @@ if (!has_capability('mod/scheduler:canscheduletootherteachers', $context)){
     <tr valign="top">
         <td align="right"><b><?php print_string('starttime', 'scheduler') ?>:</b></td>
         <td align="left">
-            <?php 
-               echo html_writer::select_time('hours', 'starthour', $form->timestart);
-               echo html_writer::select_time('minutes', 'startminute', $form->timestart);
-            ?>
+            <?php print_time_selector('starthour', 'startminute', $form->timestart, 5); ?>
         </td>
     </tr>
     <tr valign="top">
         <td align="right"><b><?php print_string('endtime', 'scheduler') ?>:</b></td>
         <td align="left">
-            <?php  
-               echo html_writer::select_time('hours', 'endhour', $form->timeend);
-               echo html_writer::select_time('minutes', 'endminute', $form->timeend);
-            ?>
+            <?php print_time_selector('endhour', 'endminute', $form->timeend, 5); ?>
         </td>
     </tr>
     <tr valign="top">
@@ -72,7 +58,7 @@ if (!has_capability('mod/scheduler:canscheduletootherteachers', $context)){
             <?php print_string('yes') ?>
             <input type="radio" name="forcewhenoverlap" value="0" <?php echo (!$form->forcewhenoverlap) ? 'checked="checked"' : '' ; ?> />
             <?php print_string('no') ?>
-            <?php echo $OUTPUT->help_icon('forcewhenoverlap', 'scheduler'); ?>
+            <?php helpbutton('forcewhenoverlap', get_string('forcewhenoverlap', 'scheduler'), 'scheduler'); ?>
         </td>
     </tr>
     <tr valign="top">
@@ -85,8 +71,8 @@ if (!has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
 ?>
     <tr valign="top">
-        <td align="right"><b><?php echo scheduler_get_teacher_name($scheduler); ?>:</b></td>
-        <td align="left" <?php print_error_class(@$errors, 'teacherid') ?> >
+        <td align="right"><b><?php echo format_string($scheduler->staffrolename) ?>:</b></td>
+        <td align="left" <?php scheduler_print_error_class(@$errors, 'teacherid') ?> >
             <?php
                 $attendants = scheduler_get_attendants($cm->id);
                 $attendantsmenu = array();
@@ -94,11 +80,11 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
                     foreach($attendants as $attendant){
                         $attendantsmenu[$attendant->id] = fullname($attendant);
                     }
-                    echo html_writer::select($attendantsmenu, 'teacherid', $form->teacherid);
+                    choose_from_menu($attendantsmenu, 'teacherid', $form->teacherid);
                 } else {
-                   print_string('noteachershere', 'scheduler', s(scheduler_get_teacher_name($scheduler)));
+                   print_string('noteachershere', 'scheduler', format_string($scheduler->staffrolename));
                 }
-                echo $OUTPUT->help_icon('bookwithteacher', 'scheduler'); 
+                helpbutton('bookwithteacher', get_string('bookwithteacher', 'scheduler'), 'scheduler'); 
             ?>
         </td>
     </tr>
@@ -126,10 +112,10 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
         <td align="left">
             <?php
                 $exclusivemenu['0'] = get_string('unlimited', 'scheduler');
-                for($i = 1 ; $i < 10 ; $i++){
+                for($i = 1 ; $i < 16 ; $i++){
                     $exclusivemenu[(string)$i] = $i;
                 }
-                echo html_writer::select($exclusivemenu, 'exclusivity', $form->exclusivity);
+                choose_from_menu($exclusivemenu, 'exclusivity', $form->exclusivity, '');
             ?>
         </td>
     </tr>
@@ -137,8 +123,10 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
         <td align="right"><b><?php  print_string('reuse', 'scheduler') ?>:</b></td>
         <td align="left">
             <?php
-                echo html_writer::select_yes_no('reuse');
-                echo $OUTPUT->help_icon('reuse', 'scheduler');
+                $reusemenu[0] = get_string('no');
+                $reusemenu[1] = get_string('yes');
+                choose_from_menu($reusemenu, 'reuse', $form->reuse, '');
+                helpbutton('reuse', get_string('reuse', 'scheduler'), 'scheduler');
             ?>
         </td>
     </tr>
@@ -147,7 +135,7 @@ if (has_capability('mod/scheduler:canscheduletootherteachers', $context)){
         <td align="left">
             <select name="displayfrom" size="1">
                 <option selected value="now"><?php print_string('now', 'scheduler') ?></option>
-                <option value="86400"><?php print_string('onedaybefore', 'scheduler') ?></option>
+                <option value="86400"><?php print_string('1daybefore', 'scheduler') ?></option>
 <?php
 for ($i = 2; $i < 7; $i++){
 ?>
@@ -155,7 +143,7 @@ for ($i = 2; $i < 7; $i++){
 <?php
 }
 ?>
-                <option value="<?php echo (86400*7); ?>"><?php  print_string('oneweekbefore', 'scheduler') ?></option>
+                <option value="<?php echo (86400*7); ?>"><?php  print_string('1weekbefore', 'scheduler') ?></option>
 <?php
 for ($i = 2; $i < 7; $i++){
 ?>
@@ -172,7 +160,7 @@ for ($i = 2; $i < 7; $i++){
             <select name="emailfrom" size="1">
                 <option selected value="never"><?php  print_string('never', 'scheduler') ?></option>
                 <option value="0"><?php print_string('onthemorningofappointment', 'scheduler') ?></option>
-                <option value="86400"><?php print_string('onedaybefore', 'scheduler') ?></option>
+                <option value="86400"><?php print_string('1daybefore', 'scheduler') ?></option>
 <?php
 for ($i = 2; $i < 7; $i++){
 ?>
@@ -180,7 +168,7 @@ for ($i = 2; $i < 7; $i++){
 <?php
 }
 ?>
-                <option value="<?php echo (DAYSECS * 7); ?>"><?php  print_string('oneweekbefore', 'scheduler') ?></option>
+                <option value="<?php echo (DAYSECS * 7); ?>"><?php  print_string('1weekbefore', 'scheduler') ?></option>
 <?php
 for ($i = 2; $i < 7; $i++){
 ?>

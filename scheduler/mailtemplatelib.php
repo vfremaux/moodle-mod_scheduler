@@ -1,36 +1,66 @@
 <?php
-
 /**
- * E-mail formatting from templates.
- * 
- * @package    mod
- * @subpackage scheduler
- * @copyright  2011 Henning Bostelmann and others (see README.txt)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
-defined('MOODLE_INTERNAL') || die();
-
-
-/**
-* Gets the content of an e-mail from language strings
-* 
-* Looks for the language string email_$template_$format and replaces the parameter values.
-* 
-* @param template the template's identified
-* @param string $format tthe mail format ('subject', 'html' or 'plain') 
-* @param infomap a hash containing pairs of parm => data to replace in template
-* @return a fully resolved template where all data has been injected
+* @package mod-scheduler
+* @category mod
+* @author Valery Fremaux (admin@ethnoinformatique.fr)
 */
-function compile_mail_template($template, $format, $infomap, $module = 'scheduler') {
-	$params = array();
-	foreach ($infomap as $key=>$value) {
-	    $params[strtolower($key)] = $value;
-	}
-	$mailstr = get_string( "email_{$template}_{$format}", $module, $params);
-    return $mailstr;
+
+/*
+* index of functions
+function compile_mail_template($template, $infomap, $module = 'scheduler') {
+function get_mail_template($virtual, $modulename, $lang = ''){
+*/
+
+if (!function_exists('compile_mail_template')){
+
+    /**
+    * useful templating functions from an older project of mine, hacked for Moodle
+    * @param template the template's file name from $CFG->sitedir
+    * @param infomap a hash containing pairs of parm => data to replace in template
+    * @return a fully resolved template where all data has been injected
+    */
+    function compile_mail_template($template, $infomap, $module, $lang) {
+        
+       
+        $notification = implode('', get_mail_template($template, $module, $lang));
+        foreach($infomap as $aKey => $aValue){
+            $notification = str_replace("<%%$aKey%%>", $aValue, $notification);
+        }
+        return $notification;
+    }
 }
 
+if (!function_exists('get_mail_template')){
+    /*
+    * resolves and get the content of a Mail template, acoording to the user's current language.
+    * @param virtual the virtual mail template name
+    * @param module the current module
+    * @param lang if default language must be overriden
+    * @return string the template's content or false if no template file is available
+    */
+    function get_mail_template($virtual, $modulename, $lang = ''){
+        global $CFG;
+
+        if ($lang == '') {
+            $lang = $CFG->lang;
+        }
+        if (preg_match('/^auth_/', $modulename)){
+            $location = 'auth';
+            $modulename = str_replace('auth_', '', $modulename);
+        } elseif (preg_match('/^block_/', $modulename)){
+            $location = 'blocks';
+            $modulename = str_replace('block_', '', $modulename);
+        } else {
+            $location = 'mod';
+        }
+        $templateName = "{$CFG->dirroot}/{$location}/{$modulename}/mails/{$lang}/{$virtual}.tpl";
+        if (file_exists($templateName))
+            return file($templateName);
+
+        debugging("template $templateName not found");
+        return array();
+    }
+}
 
 /**
  * Sends an e-mail based on a template. 
@@ -51,7 +81,7 @@ function compile_mail_template($template, $format, $infomap, $module = 'schedule
  * @return bool|string Returns "true" if mail was sent OK, "emailstop" if email
  *         was blocked by user and "false" if there was another sort of error.
  */
-function send_email_from_template($recipient, $sender, $course, $title, $template, $infomap, $modulename , $lang = '') {
+function send_email_from_template($recipient, $sender, $course, $title, $template, $infomap, $modulename , $lang = ''){
     
     global $CFG;
     global $SITE;
@@ -74,11 +104,12 @@ function send_email_from_template($recipient, $sender, $course, $title, $templat
     
     $vars = array_merge($defaultvars,$infomap);
     
-    $subject = compile_mail_template($template, 'subject', $vars, $modulename);    
-    $plainMail = compile_mail_template($template, 'plain', $vars, $modulename);
-    $htmlMail = compile_mail_template($template, 'html', $vars, $modulename);
+    $subject = get_string($title,$modulename,$subjectPrefix);
+    $plainMail = compile_mail_template($template,$vars,$modulename);
+    $htmlMail = compile_mail_template($template.'_html',$vars,$modulename);
     
     $res = email_to_user ($recipient, $sender, $subject, $plainMail, $htmlMail); 
+    
     return $res;
 }
 
